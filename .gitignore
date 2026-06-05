@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+output/
+# Keep the bundled demo corpus tracked so the project is self-contained.
+data/*.json
+!data/bookmarks.json
+# Internal-only notes (kept private, like xsaved-rag).
+PLAN.md
+LEARNING.md

@@ -1,0 +1,24 @@
+{
+  "name": "xsaved-mcp",
+  "version": "0.1.0",
+  "description": "MCP server (stdio) exposing a Twitter/X bookmark corpus as tools any MCP client (Claude Desktop, Claude Code) can call: search, fetch, stats, tags",
+  "type": "module",
+  "bin": {
+    "xsaved-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "inspect": "npx @modelcontextprotocol/inspector tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}
