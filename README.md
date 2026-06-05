@@ -78,18 +78,29 @@ Running `npm run dev` on its own just sits there — that's correct. An MCP serv
 
 ### Register in Claude Desktop
 
-Add this to your `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`), then restart Claude Desktop:
+First build, so there's a plain JS entry point to run:
+
+```bash
+npm run build   # outputs dist/index.js
+```
+
+Then add this to your `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`) and restart Claude Desktop:
 
 ```json
 {
   "mcpServers": {
     "xsaved": {
-      "command": "npx",
-      "args": ["tsx", "/absolute/path/to/xsaved-mcp/src/index.ts"]
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/xsaved-mcp/dist/index.js"],
+      "env": {
+        "BOOKMARKS_PATH": "/absolute/path/to/xsaved-mcp/data/bookmarks.json"
+      }
     }
   }
 }
 ```
+
+**Why absolute paths to `node`, not just `npx tsx`?** macOS launches GUI apps without your shell's `PATH`, so Claude Desktop often can't find `npx`, `tsx`, or even `node`. Pointing `command` at the absolute `node` binary (`which node`) and `args` at the built `dist/index.js` sidesteps the whole problem. `BOOKMARKS_PATH` is absolute too, because the spawned process's working directory isn't guaranteed. This PATH gotcha is the most common reason a freshly-built MCP server "works in the terminal but not in Claude Desktop."
 
 Then in a Claude Desktop chat: *"Use the xsaved tools to find my bookmarks about AI agents"* — and watch it call `search_bookmarks`.
 
