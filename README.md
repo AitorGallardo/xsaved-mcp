@@ -20,12 +20,19 @@ Claude Desktop / Claude Code  ──(MCP, JSON-RPC over stdio)──►  this se
 
 | Tool | Input | What it returns |
 |---|---|---|
-| `search_bookmarks` | `query`, `limit?` | Keyword search over tweet text, notes, author, and tags. Returns ranked bookmarks with IDs. |
+| `search_bookmarks` | `query`, `limit?` | **Keyword** search over tweet text, notes, author, and tags. Returns ranked bookmarks with IDs. |
 | `get_bookmark` | `id` | A single bookmark by its tweet ID. |
 | `get_stats` | — | Corpus overview: totals, unique authors/tags, date range, top authors, top tags. |
 | `list_tags` | — | Every tag with how many bookmarks carry it. |
+| `semantic_search_bookmarks` *(optional)* | `query`, `limit?` | **Meaning-based** search — finds conceptually related tweets even with no shared keywords. Registered only when a vector DB + embedding key are configured (see below). |
 
 Each tool is registered with a Zod input schema, so the client knows exactly what arguments to send and the server validates them before running.
+
+### Keyword vs semantic — the two search tools
+
+`search_bookmarks` matches **exact words**; `semantic_search_bookmarks` matches **meaning**. Ask the semantic tool for *"staying motivated through hard times"* and it surfaces a tweet about *"insatiable hunger and relentlessness to push through obstacles"* — zero shared keywords, but the same idea. This tool is the bridge to the sibling [`xsaved-rag`](../xsaved-rag/) project: it embeds the query and runs a `pgvector` nearest-neighbour search against the **same Postgres database** that project already indexed. The two projects compose through a shared datastore, not shared code.
+
+It's **optional by design**: if `DATABASE_URL` + `OPENAI_API_KEY` aren't set, the server still runs and the other four tools work — the semantic tool just isn't advertised (graceful capability detection). To enable it: have `xsaved-rag`'s Postgres running and indexed, then set both env vars (see `.env.example`).
 
 ---
 

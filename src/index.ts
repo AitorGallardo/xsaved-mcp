@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { BookmarkStore } from "./data.js";
+import { semanticAvailable, semanticSearch } from "./semantic.js";
 import type { Bookmark } from "./types.js";
 
 // IMPORTANT: a stdio MCP server speaks JSON-RPC over stdout. Anything we print
@@ -24,7 +26,7 @@ function formatBookmark(b: Bookmark, score?: number): string {
   ];
   if (b.tags.length) lines.push(`tags: ${b.tags.join(", ")}`);
   if (b.notes) lines.push(`note: ${b.notes}`);
-  lines.push(`bookmarked: ${b.bookmarkedAt.slice(0, 10)}`);
+  if (b.bookmarkedAt) lines.push(`bookmarked: ${b.bookmarkedAt.slice(0, 10)}`);
   if (score !== undefined) lines.push(`score: ${score}`);
   return lines.join("\n");
 }
@@ -122,6 +124,43 @@ server.registerTool(
     return textResult(`${tags.length} tags:\n\n${body}`);
   }
 );
+
+// --- Semantic search (optional — only if xsaved-rag's DB + an OpenAI key are
+//     configured). This is the bridge to Project 4: meaning-based search over
+//     the same bookmarks, served through the same MCP doorway. ---------------
+if (semanticAvailable()) {
+  server.registerTool(
+    "semantic_search_bookmarks",
+    {
+      title: "Semantic (meaning-based) search",
+      description:
+        "Search bookmarks by MEANING, not exact words — finds conceptually related tweets even when they share no keywords (e.g. 'AI safety' also surfaces 'alignment', 'RLHF'). Use this when keyword search misses paraphrases or synonyms. Returns ranked bookmarks with a similarity score (1.0 = closest).",
+      inputSchema: {
+        query: z.string().describe("A natural-language description of what you're looking for"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Max results to return (default 10)"),
+      },
+    },
+    async ({ query, limit }) => {
+      const hits = await semanticSearch(query, limit ?? 10);
+      if (hits.length === 0) {
+        return textResult(`No bookmarks found for "${query}".`);
+      }
+      const body = hits.map((h) => formatBookmark(h, h.score)).join("\n\n---\n\n");
+      return textResult(`${hits.length} semantically-related result(s) for "${query}":\n\n${body}`);
+    }
+  );
+  console.error("[xsaved-mcp] semantic_search_bookmarks ENABLED (DB + OpenAI key found)");
+} else {
+  console.error(
+    "[xsaved-mcp] semantic_search_bookmarks disabled (set DATABASE_URL + OPENAI_API_KEY to enable)"
+  );
+}
 
 // --- Connect over stdio -----------------------------------------------------
 const transport = new StdioServerTransport();
