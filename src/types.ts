@@ -1,15 +1,36 @@
-// A single bookmark, normalised from the raw JSON corpus.
+// Shapes returned by the xsaved-rag HTTP API. The MCP server doesn't own any
+// search/data logic — it just relays these.
+
+export interface SearchHit {
+  bookmarkId: string;
+  author: string;
+  text: string;
+  notes?: string;
+  tags: string[];
+  rank: number;
+  distance?: number; // present for vector/hybrid (cosine distance, lower = closer)
+  keywordScore?: number; // present for keyword/hybrid (BM25-family rank)
+}
+
 export interface Bookmark {
   id: string;
   text: string;
   author: string;
   notes?: string;
   tags: string[];
-  createdAt: string; // when the tweet was posted
-  bookmarkedAt: string; // when the user saved it
+  created_at?: string;
+  bookmarked_at?: string;
 }
 
-// What a search returns per hit: the bookmark plus a relevance score.
-export interface SearchHit extends Bookmark {
-  score: number;
+export interface Stats {
+  totalBookmarks: number;
+  uniqueAuthors: number;
+  dateRange: { earliest: string | null; latest: string | null };
+  topAuthors: { name: string; count: number }[];
+  topTags: { name: string; count: number }[];
+}
+
+export interface TagCount {
+  name: string;
+  count: number;
 }
