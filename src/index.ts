@@ -49,10 +49,24 @@ function formatBookmark(b: Bookmark): string {
 
 // Run a tool body, turning a down/unreachable rag service into a clean,
 // model-readable error instead of a crash.
-async function guard(fn: () => Promise<ReturnType<typeof textResult>>) {
+function log(msg: string) {
+  // stderr only — stdout is the JSON-RPC channel. Visible in the MCP Inspector
+  // and in Claude Desktop's per-server log file.
+  console.error(`[xsaved-mcp] ${new Date().toLocaleTimeString()} ${msg}`);
+}
+
+async function guard(
+  label: string,
+  fn: () => Promise<ReturnType<typeof textResult>>
+) {
+  const start = Date.now();
+  log(`→ ${label}`);
   try {
-    return await fn();
+    const res = await fn();
+    log(`  ${res.isError ? "✗" : "✓"} ${label} (${Date.now() - start}ms)`);
+    return res;
   } catch (e) {
+    log(`  ✗ ${label} threw (${Date.now() - start}ms)`);
     if (e instanceof RagUnavailableError) return textResult(e.message, true);
     return textResult(`Unexpected error: ${(e as Error).message}`, true);
   }
@@ -85,7 +99,7 @@ function registerSearchTool(
       },
     },
     ({ query, limit }) =>
-      guard(async () => {
+      guard(`${name}("${query}", limit=${limit ?? 10})`, async () => {
         const hits = await search(strategy, query, limit ?? 10);
         if (hits.length === 0) return textResult(`No bookmarks matched "${query}".`);
         const body = hits.map(formatHit).join("\n\n---\n\n");
@@ -124,7 +138,7 @@ server.registerTool(
     inputSchema: { id: z.string().describe("The bookmark / tweet ID") },
   },
   ({ id }) =>
-    guard(async () => {
+    guard(`get_bookmark(${id})`, async () => {
       const b = await getBookmark(id);
       if (!b) return textResult(`No bookmark found with id ${id}.`);
       return textResult(formatBookmark(b));
@@ -139,7 +153,7 @@ server.registerTool(
       "Overview of the whole bookmark collection: total count, unique authors, date range, and the most-saved authors and tags.",
   },
   () =>
-    guard(async () => {
+    guard("get_stats", async () => {
       const s = await getStats();
       const lines = [
         `Total bookmarks: ${s.totalBookmarks}`,
@@ -164,7 +178,7 @@ server.registerTool(
       "List every tag the user has applied to their bookmarks, with how many bookmarks carry each tag.",
   },
   () =>
-    guard(async () => {
+    guard("list_tags", async () => {
       const tags = await getTags();
       if (tags.length === 0) return textResult("No tags in the corpus.");
       const body = tags.map((t) => `${t.name} (${t.count})`).join("\n");
