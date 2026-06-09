@@ -22,14 +22,16 @@ Claude Desktop / Claude Code  ──(MCP, JSON-RPC over stdio)──►  xsaved-
 
 | Tool | Input | What it returns |
 |---|---|---|
-| `search_bookmarks` | `query`, `limit?` | **Keyword** full-text search (exact words: handles, library names, terms). |
-| `semantic_search_bookmarks` | `query`, `limit?` | **Meaning-based** search — conceptual matches even with no shared keywords. |
-| `hybrid_search_bookmarks` | `query`, `limit?` | **Keyword + semantic** fused with Reciprocal Rank Fusion. The best general default. |
+| `search_bookmarks` | `query`, `limit?`, *filters* | **Keyword** full-text search (exact words: handles, library names, terms). |
+| `semantic_search_bookmarks` | `query`, `limit?`, *filters* | **Meaning-based** search — conceptual matches even with no shared keywords. |
+| `hybrid_search_bookmarks` | `query`, `limit?`, *filters* | **Keyword + semantic** fused with Reciprocal Rank Fusion. The best general default. |
 | `get_bookmark` | `id` | A single bookmark by tweet ID. |
 | `get_stats` | — | Corpus overview: totals, unique authors, date range, top authors/tags. |
 | `list_tags` | — | Every tag with how many bookmarks carry it. |
 
-All three search strategies are backed by the same `xsaved-rag` engine — the MCP server just picks the strategy and relays the call. Each tool is registered with a Zod input schema, so the client gets typed argument hints and the server validates inputs before relaying.
+All three search tools also accept optional **metadata filters** — `author`, `tag`, `since`, `until` — applied *before* scoring, so you can combine structured filtering with semantic/keyword search (e.g. only `@elonmusk`, only bookmarks since `2026-01-01`). They're backed by the same `xsaved-rag` engine; the MCP server just picks the strategy, forwards the filters, and relays the call. Each tool is registered with a Zod input schema, so the client gets typed argument hints and the server validates inputs before relaying.
+
+**Prompt:** the server also exposes a reusable prompt, `research_bookmarks` (arg: `topic`) — a canned "research my bookmarks about X, with citations" workflow that clients can surface in their prompt picker.
 
 ---
 

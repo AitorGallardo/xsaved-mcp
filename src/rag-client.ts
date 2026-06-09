@@ -32,12 +32,24 @@ async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+export interface SearchFilters {
+  author?: string;
+  tag?: string;
+  since?: string; // ISO date, inclusive lower bound on bookmarked-at
+  until?: string; // ISO date, inclusive upper bound
+}
+
 export async function search(
   strategy: Strategy,
   query: string,
-  limit: number
+  limit: number,
+  filters: SearchFilters = {}
 ): Promise<SearchHit[]> {
   const qs = new URLSearchParams({ q: query, strategy, limit: String(limit) });
+  if (filters.author) qs.set("author", filters.author);
+  if (filters.tag) qs.set("tag", filters.tag);
+  if (filters.since) qs.set("since", filters.since);
+  if (filters.until) qs.set("until", filters.until);
   const data = await get<{ hits: SearchHit[] }>(`/search?${qs}`);
   return data.hits;
 }

@@ -96,15 +96,29 @@ function registerSearchTool(
           .max(50)
           .optional()
           .describe("Max results (default 10)"),
+        // Optional metadata pre-filters — narrow the corpus before searching.
+        author: z.string().optional().describe("Only bookmarks by this author handle (no @)"),
+        tag: z.string().optional().describe("Only bookmarks carrying this tag"),
+        since: z.string().optional().describe("Only bookmarks saved on/after this ISO date (YYYY-MM-DD)"),
+        until: z.string().optional().describe("Only bookmarks saved on/before this ISO date (YYYY-MM-DD)"),
       },
     },
-    ({ query, limit }) =>
-      guard(`${name}("${query}", limit=${limit ?? 10})`, async () => {
-        const hits = await search(strategy, query, limit ?? 10);
-        if (hits.length === 0) return textResult(`No bookmarks matched "${query}".`);
-        const body = hits.map(formatHit).join("\n\n---\n\n");
-        return textResult(`${hits.length} ${strategy} result(s) for "${query}":\n\n${body}`);
-      })
+    ({ query, limit, author, tag, since, until }) => {
+      const filters = { author, tag, since, until };
+      const fnote = Object.entries(filters)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", ");
+      return guard(
+        `${name}("${query}", limit=${limit ?? 10}${fnote ? `, ${fnote}` : ""})`,
+        async () => {
+          const hits = await search(strategy, query, limit ?? 10, filters);
+          if (hits.length === 0) return textResult(`No bookmarks matched "${query}".`);
+          const body = hits.map(formatHit).join("\n\n---\n\n");
+          return textResult(`${hits.length} ${strategy} result(s) for "${query}":\n\n${body}`);
+        }
+      );
+    }
   );
 }
 
@@ -184,6 +198,41 @@ server.registerTool(
       const body = tags.map((t) => `${t.name} (${t.count})`).join("\n");
       return textResult(`${tags.length} tags:\n\n${body}`);
     })
+);
+
+// --- Prompt template --------------------------------------------------------
+// MCP servers can also offer reusable *prompts* — pre-written instructions a
+// client can surface (in Claude Desktop they show up in the "+"/prompt picker).
+// This one packages the "research my bookmarks" workflow so the user doesn't
+// have to phrase it well every time.
+server.registerPrompt(
+  "research_bookmarks",
+  {
+    title: "Research my bookmarks",
+    description:
+      "Run a small research workflow over the user's bookmarks on a topic, with citations.",
+    argsSchema: {
+      topic: z.string().describe("The topic to research, e.g. 'prompt caching'"),
+    },
+  },
+  ({ topic }) => ({
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: [
+            `Research my saved bookmarks about "${topic}".`,
+            ``,
+            `1. Use hybrid_search_bookmarks to find the most relevant bookmarks.`,
+            `2. If useful, narrow with the author/tag/since/until filters or fetch details with get_bookmark.`,
+            `3. Synthesise a short, structured summary of what I've saved on this topic.`,
+            `4. Cite each claim with the bookmark ID in [brackets]. If there isn't enough, say so.`,
+          ].join("\n"),
+        },
+      },
+    ],
+  })
 );
 
 // --- Connect over stdio -----------------------------------------------------

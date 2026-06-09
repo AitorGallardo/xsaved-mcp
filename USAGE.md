@@ -1,8 +1,7 @@
-# Testing the whole MCP + RAG system
+# How to run, test & watch the MCP + RAG system
 
-How to run and test the full stack end-to-end. The mental model: **rag = the
-engine** (data + search), **mcp = the doorway** Claude talks to. The doorway
-calls the engine over HTTP.
+The mental model: **rag = the engine** (data + search), **mcp = the doorway**
+Claude talks to. The doorway calls the engine over HTTP.
 
 ```
 Claude Desktop / Inspector → xsaved-mcp (thin bridge) → HTTP → xsaved-rag service → Postgres (pgvector + FTS)
@@ -16,14 +15,17 @@ Claude Desktop / Inspector → xsaved-mcp (thin bridge) → HTTP → xsaved-rag 
 cd xsaved-rag
 docker compose up -d --wait   # Postgres + pgvector (the vector database)
 npm run db:migrate            # first time only — creates the tables
-npm run index                 # first time only — embeds the 189 bookmarks (~$0.0002)
+npm run index                 # first time only — embeds the bookmarks (~$0.0002)
 npm run serve                 # API on http://localhost:8790 — LEAVE THIS RUNNING
 ```
 
 Sanity-check rag on its own (optional):
 
 ```bash
-curl "http://localhost:8790/search?q=motivation&strategy=hybrid&limit=3"   # should print JSON hits
+curl "http://localhost:8790/search?q=motivation&strategy=hybrid&limit=3"
+# with metadata filters (combine structured + semantic search):
+curl "http://localhost:8790/search?q=rockets&strategy=hybrid&author=elonmusk"
+curl "http://localhost:8790/search?q=ai&strategy=vector&tag=ai_local&since=2026-01-01"
 ```
 
 ## Terminal 2 — test the MCP server (pick one)
@@ -44,7 +46,34 @@ npm run build
 # Claude Desktop config already points at RAG_API_URL=http://localhost:8790
 # Fully QUIT and reopen Claude Desktop, then ask:
 #   "hybrid-search my bookmarks for discipline"
+# or use the "research_bookmarks" prompt from the + / prompt picker.
 ```
+
+## Terminal 3 — watch what's happening (logs)
+
+Both servers log every request, so you can see the traffic flow.
+
+**rag** (Terminal 1) prints one coloured line per call:
+
+```
+8:16:58 AM GET /search?...&strategy=hybrid 200 660ms → 2 hits [hybrid] "discipline"
+```
+
+**mcp** is spawned by Claude Desktop and has no terminal — watch its log file:
+
+```bash
+tail -f ~/Library/Logs/Claude/mcp-server-xsaved.log
+```
+
+You'll see each tool call:
+
+```
+[xsaved-mcp] 8:16:57 AM → hybrid_search_bookmarks("discipline", limit=2)
+[xsaved-mcp] 8:16:58 AM   ✓ hybrid_search_bookmarks("discipline", limit=2) (749ms)
+```
+
+(If you run mcp via `npm run inspect` instead, the Inspector shows these.)
+So: **rag terminal + `tail -f` the MCP log = full visibility of every hop.**
 
 ## If it breaks
 
