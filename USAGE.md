@@ -12,8 +12,13 @@ Claude Desktop / Inspector → xsaved-mcp (thin bridge) → HTTP → xsaved-rag 
 ## Terminal 1 — start the RAG engine (data + search)
 
 ```bash
+# 0. start OrbStack (your local Docker runtime), if it isn't already running
+open -a OrbStack              # macOS — give it a few seconds to boot
+docker ps                     # sanity check — errors if the daemon isn't ready yet
+
+# 1. launch the local database + search service
 cd xsaved-rag
-docker compose up -d --wait   # Postgres + pgvector (the vector database)
+docker compose up -d --wait   # starts the Postgres + pgvector container (xsaved-rag-db on :5432)
 npm run db:migrate            # first time only — creates the tables
 npm run index                 # first time only — embeds the bookmarks (~$0.0002)
 npm run serve                 # API on http://localhost:8790 — LEAVE THIS RUNNING
@@ -77,6 +82,7 @@ So: **rag terminal + `tail -f` the MCP log = full visibility of every hop.**
 
 ## If it breaks
 
+- `docker compose` says **"cannot connect to the Docker daemon"** → OrbStack isn't running yet (`open -a OrbStack`, wait a few seconds, retry).
 - Tool says **"could not reach xsaved-rag service"** → Terminal 1 isn't running (`npm run serve`).
 - `/search` empty or errors → DB not indexed (`npm run index`).
 - `EADDRINUSE: :::8790` → a server is already on that port; `lsof -ti tcp:8790 | xargs kill`.
