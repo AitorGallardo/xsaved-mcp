@@ -19,8 +19,12 @@ docker ps                     # sanity check — errors if the daemon isn't read
 # 1. launch the local database + search service
 cd xsaved-rag
 docker compose up -d --wait   # starts the Postgres + pgvector container (xsaved-rag-db on :5432)
-npm run db:migrate            # first time only — creates the tables
-npm run index                 # first time only — embeds the bookmarks (~$0.0002)
+# one-time setup — tables, media, embeddings (idempotent; safe to re-run)
+npm run setup                 # = db:migrate + download:media + index
+                              #   · downloads ~165 tweet images via the asset manifest
+                              #   · captions images/videos with gpt-5.4-nano (OCR) — ~$0.07 one-time
+                              #   · embeds tweet text + captions (~$0.0002)
+                              #   skip the paid captions: ENRICH_VISION=false npm run setup
 npm run serve                 # API on http://localhost:8790 — LEAVE THIS RUNNING
 ```
 
