@@ -1,43 +1,25 @@
-# How to run, test & watch the MCP + RAG system
+# How to run, test & watch the MCP server
 
-The mental model: **rag = the engine** (data + search), **mcp = the doorway**
-Claude talks to. The doorway calls the engine over HTTP.
+**rag = the engine** (data + search), **mcp = the doorway** Claude talks to.
+The doorway calls the engine over HTTP.
 
 ```
 Claude Desktop / Inspector → xsaved-mcp (thin bridge) → HTTP → xsaved-rag service → Postgres (pgvector + FTS)
 ```
 
-**Prereq:** OrbStack (Docker) running.
+## 1. Start the engine first
 
-## Terminal 1 — start the RAG engine (data + search)
+The MCP server is a thin bridge — it needs the RAG engine running on :8790.
+Startup steps live in one place: **[`xsaved-rag/USAGE.md`](../xsaved-rag/USAGE.md)**. TL;DR:
 
 ```bash
-# 0. start OrbStack (your local Docker runtime), if it isn't already running
-open -a OrbStack              # macOS — give it a few seconds to boot
-docker ps                     # sanity check — errors if the daemon isn't ready yet
-
-# 1. launch the local database + search service
 cd xsaved-rag
-docker compose up -d --wait   # starts the Postgres + pgvector container (xsaved-rag-db on :5432)
-# one-time setup — tables, media, embeddings (idempotent; safe to re-run)
-npm run setup                 # = db:migrate + download:media + index
-                              #   · downloads ~165 tweet images via the asset manifest
-                              #   · captions images/videos with gpt-5.4-nano (OCR) — ~$0.07 one-time
-                              #   · embeds tweet text + captions (~$0.0002)
-                              #   skip the paid captions: ENRICH_VISION=false npm run setup
-npm run serve                 # API on http://localhost:8790 — LEAVE THIS RUNNING
+docker compose up -d --wait
+npm run setup                 # one-time: tables + media + embeddings (details in xsaved-rag/USAGE.md)
+npm run serve                 # http://localhost:8790 — LEAVE THIS RUNNING
 ```
 
-Sanity-check rag on its own (optional):
-
-```bash
-curl "http://localhost:8790/search?q=motivation&strategy=hybrid&limit=3"
-# with metadata filters (combine structured + semantic search):
-curl "http://localhost:8790/search?q=rockets&strategy=hybrid&author=elonmusk"
-curl "http://localhost:8790/search?q=ai&strategy=vector&tag=ai_local&since=2026-01-01"
-```
-
-## Terminal 2 — test the MCP server (pick one)
+## 2. Test the MCP server (pick one)
 
 **Option A — fastest, no Claude needed (MCP Inspector UI):**
 
@@ -58,23 +40,13 @@ npm run build
 # or use the "research_bookmarks" prompt from the + / prompt picker.
 ```
 
-## Terminal 3 — watch what's happening (logs)
+## 3. Watch the MCP log
 
-Both servers log every request, so you can see the traffic flow.
-
-**rag** (Terminal 1) prints one coloured line per call:
-
-```
-8:16:58 AM GET /search?...&strategy=hybrid 200 660ms → 2 hits [hybrid] "discipline"
-```
-
-**mcp** is spawned by Claude Desktop and has no terminal — watch its log file:
+mcp is spawned by Claude Desktop and has no terminal of its own — tail its log:
 
 ```bash
 tail -f ~/Library/Logs/Claude/mcp-server-xsaved.log
 ```
-
-You'll see each tool call:
 
 ```
 [xsaved-mcp] 8:16:57 AM → hybrid_search_bookmarks("discipline", limit=2)
@@ -82,12 +54,10 @@ You'll see each tool call:
 ```
 
 (If you run mcp via `npm run inspect` instead, the Inspector shows these.)
-So: **rag terminal + `tail -f` the MCP log = full visibility of every hop.**
+Pair this with the rag serve terminal's request log = full visibility of every hop.
 
 ## If it breaks
 
-- `docker compose` says **"cannot connect to the Docker daemon"** → OrbStack isn't running yet (`open -a OrbStack`, wait a few seconds, retry).
-- Tool says **"could not reach xsaved-rag service"** → Terminal 1 isn't running (`npm run serve`).
-- `/search` empty or errors → DB not indexed (`npm run index`).
-- `EADDRINUSE: :::8790` → a server is already on that port; `lsof -ti tcp:8790 | xargs kill`.
+- Tool says **"could not reach xsaved-rag service"** → the engine isn't running; see [`xsaved-rag/USAGE.md`](../xsaved-rag/USAGE.md) (`npm run serve`).
 - Claude Desktop shows no `xsaved` tools → didn't fully quit/reopen, or `dist` not built (`npm run build`).
+- `EADDRINUSE: :::8790` → a server is already on that port; `lsof -ti tcp:8790 | xargs kill`.
